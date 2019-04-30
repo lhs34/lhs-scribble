@@ -54,9 +54,6 @@ class PropogationNetwork(nn.Module):
         # Encoder
         self.resnet = resnet18(pretrained=True, input_layers=5)
 
-        # Aggregation block
-        self.feature_aggregation = AggregateBlock()
-
         # Decoder
         self.decoder1 = DecoderBlock(512, 256)
         self.decoder2 = DecoderBlock(256, 128)
@@ -68,9 +65,8 @@ class PropogationNetwork(nn.Module):
         x = torch.cat((image, prev_mask, prev_time_mask), dim=1)
         l1, l2, l3, l4 = self.resnet(x)
 
-        # Aggregation block
-        agg = self.feature_aggregation(l4, prev_agg, l4.size(1))
-        agg += interact_agg
+        # Feature fusion
+        agg = l4 + interact_agg
 
         # Decoder
         x = self.decoder1(agg, l3)
