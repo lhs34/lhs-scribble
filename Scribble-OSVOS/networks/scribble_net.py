@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from resnet import *
 
 
@@ -17,44 +18,76 @@ class ScribbleNet(nn.Module):
 class InteractionNetwork(nn.Module):
     def __init__(self):
         super().__init__()
-        self.resnet = resnet18(pretrained=True)
+        # Encoder
+        self.resnet = resnet18(pretrained=True, input_layers=6)
+
+        # Aggregation block
+        self.feature_aggregation = AggregateBlock()
+
+        # Decoder
         self.decoder1 = DecoderBlock(512, 256)
         self.decoder2 = DecoderBlock(256, 128)
         self.decoder3 = DecoderBlock(128, 64)
-        self.transConv = nn.ConvTranspose2d(64,1,kernel_size=3)
+        self.trans_conv = nn.ConvTranspose2d(64, 1, kernel_size=3)
 
-    def forward(self, image, prev_mask, scribble):
+    def forward(self, image, prev_mask, scribble, prev_agg):
+        # Encoder
         x = torch.cat((image, prev_mask, scribble), dim=1)
         l1, l2, l3, l4 = self.resnet(x)
 
+        # Aggregation block
+        agg = self.feature_aggregation(l4, prev_agg, l4.size(1))
+
         # Decoder
-        x = self.decoder1(l4, l3)
+        x = self.decoder1(agg, l3)
         x = self.decoder2(x, l2)
         x = self.decoder3(x, l1)
-        x = self.transConv(x)
-        p = F.upsample(p2, scale_factor=4, mode='bilinear')
-        return p
-
+        x = self.trans_conv(x)
+        mask = F.upsample(x, scale_factor=4, mode='bilinear')
+        
+        return mask, agg
 
 
 class PropogationNetwork(nn.Module):
     def __init__(self):
         super().__init__()
+        # Encoder
+        self.resnet = resnet18(pretrained=True, input_layers=5)
+
+        # Aggregation block
+        self.feature_aggregation = AggregateBlock()
+
+        # Decoder
         self.decoder1 = DecoderBlock(512, 256)
         self.decoder2 = DecoderBlock(256, 128)
         self.decoder3 = DecoderBlock(128, 64)
-        self.transConv = nn.ConvTranspose2d(64,1,kernel_size=3)
+        self.trans_conv = nn.ConvTranspose2d(64, 1, kernel_size=3)
 
-    def forward(self, image, prev_mask, prev_time_mask):
-        pass
+    def forward(self, image, prev_mask, prev_time_mask, interact_agg):
+        # Encoder
+        x = torch.cat((image, prev_mask, prev_time_mask), dim=1)
+        l1, l2, l3, l4 = self.resnet(x)
 
+        # Aggregation block
+        agg = self.feature_aggregation(l4, prev_agg, l4.size(1))
+        agg += interact_agg
+
+        # Decoder
+        x = self.decoder1(agg, l3)
+        x = self.decoder2(x, l2)
+        x = self.decoder3(x, l1)
+        x = self.trans_conv(x)
+        mask = F.upsample(x, scale_factor=4, mode='bilinear')
+        
+        return mask, agg
+        
 
 class DecoderBlock(nn.Module):
-    def __init__(self, residual_inchannels, residual_outchannels):
+    def __init__(self, in_channels, out_channels):
         super(DecoderBlock).__init__()
-        self.residual_skip = nn.ResidualBlock(in_channels=residual_outchannels, out_channels=residual_inchannels)
+        self.residual_skip = nn.ResidualBlock(in_channels=out_channels, out_channels=in_channels)
         self.upsample = nn.Upsample(scale_factor=2,mode='bilinear')
-        self.residual = nn.ResidualBlock(in_channels=residual_inchannels, out_channels=residual_outchannels)
+        self.residual = nn.ResidualBlock(in_channels=in_channels, out_channels=out_channels)
 
     def forward(self, input, skip_connection):
         skip_input = self.residual(skip_connection)
