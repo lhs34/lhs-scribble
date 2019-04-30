@@ -6,6 +6,7 @@ class ScribbleNet(nn.Module):
 
     def __init__(self):
         super().__init__()
+        resnet18 = models.resnet18(pretrained=True)
 
     def forward(self, x):
-        pass
+        x = resnet18(x)
