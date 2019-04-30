@@ -26,9 +26,9 @@ class InteractionNetwork(nn.Module):
         self.feature_aggregation = AggregateBlock(512, 8)
 
         # Decoder
-        self.decoder1 = DecoderBlock(512, 256)
-        self.decoder2 = DecoderBlock(256, 128)
-        self.decoder3 = DecoderBlock(128, 64)
+        self.decoder1 = DecoderBlock(512, 256, 9)
+        self.decoder2 = DecoderBlock(256, 128, 13)
+        self.decoder3 = DecoderBlock(128, 64, 17)
         self.trans_conv = nn.ConvTranspose2d(64, 1, kernel_size=3)
 
     def forward(self, image, prev_mask, scribble, prev_agg):
@@ -38,6 +38,7 @@ class InteractionNetwork(nn.Module):
 
         # Aggregation block
         agg = self.feature_aggregation(prev_agg, l4)
+        print('l3 shape: ', l3.shape)
 
         # Decoder
         x = self.decoder1(agg, l3)
@@ -56,9 +57,9 @@ class PropogationNetwork(nn.Module):
         self.resnet = resnet18(pretrained=True, input_layers=5)
 
         # Decoder
-        self.decoder1 = DecoderBlock(512, 256)
-        self.decoder2 = DecoderBlock(256, 128)
-        self.decoder3 = DecoderBlock(128, 64)
+        self.decoder1 = DecoderBlock(512, 256, 9)
+        self.decoder2 = DecoderBlock(256, 128, 15)
+        self.decoder3 = DecoderBlock(128, 64, 21)
         self.trans_conv = nn.ConvTranspose2d(64, 1, kernel_size=3)
 
     def forward(self, image, prev_mask, prev_time_mask, interact_agg):
@@ -80,15 +81,19 @@ class PropogationNetwork(nn.Module):
 
 
 class DecoderBlock(nn.Module):
-    def __init__(self, in_channels, out_channels):
-        super(DecoderBlock).__init__()
-        self.residual_skip = ResidualBlock(in_channels=out_channels, out_channels=in_channels)
+    def __init__(self, in_channels, out_channels, trans_conv_size):
+        super().__init__()
+        self.residual_skip = ResidualBlock(out_channels, out_channels)
         self.upsample = nn.Upsample(scale_factor=2,mode='bilinear')
-        self.residual = ResidualBlock(in_channels=in_channels, out_channels=out_channels)
+        self.conv_trans = nn.ConvTranspose2d(in_channels, out_channels, trans_conv_size)
+        self.residual = ResidualBlock(out_channels, out_channels)
 
     def forward(self, input, skip_connection):
-        skip_input = self.residual(skip_connection)
-        x = self.upsample(input)
+        print(skip_connection.shape, input.shape)
+        skip_input = self.residual_skip(skip_connection)
+        print(skip_input.shape)
+        x = self.conv_trans(input)
+        print(x.shape)
         x = skip_input + x
         x = self.residual(x)
         return x
@@ -120,7 +125,7 @@ class AggregateBlock(nn.Module):
 
 class ResidualBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride=1, downsample=None):
-        super(ResidualBlock, self).__init__()
+        super().__init__()
         self.conv1 = conv3x3(in_channels, out_channels, stride)
         self.bn1 = nn.BatchNorm2d(out_channels)
         self.relu = nn.ReLU(inplace=True)
@@ -137,6 +142,7 @@ class ResidualBlock(nn.Module):
         out = self.bn2(out)
         if self.downsample:
             residual = self.downsample(x)
+        print(out.shape)
         out += residual
         out = self.relu(out)
         return out
