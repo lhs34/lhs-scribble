@@ -18,10 +18,21 @@ class InteractionNetwork(nn.Module):
     def __init__(self):
         super().__init__()
         self.resnet = resnet18(pretrained=True)
+        self.decoder1 = DecoderBlock(512, 256)
+        self.decoder2 = DecoderBlock(256, 128)
+        self.decoder3 = DecoderBlock(128, 64)
+        self.transConv = nn.ConvTranspose2d(64,1,kernel_size=3)
 
     def forward(self, image, prev_mask, scribble):
         x = torch.cat((image, prev_mask, scribble), dim=1)
         l1, l2, l3, l4 = self.resnet(x)
+        x = self.decoder1(l4, l3)
+        x = self.decoder2(x, l2)
+        x = self.decoder3(x, l1)
+        x = self.transConv(x)
+        p = F.upsample(p2, scale_factor=4, mode='bilinear')
+        return p
+
 
 
 class PropogationNetwork(nn.Module):
@@ -35,8 +46,9 @@ class PropogationNetwork(nn.Module):
 class DecoderBlock(nn.Module):
     def __init__(self, residual_inchannels, residual_outchannels):
         super(DecoderBlock).__init__()
+        self.residual_skip = nn.ResidualBlock(in_channels=residual_outchannels, out_channels=residual_inchannels)
+        self.upsample = nn.Upsample(scale_factor=2,mode='bilinear')
         self.residual = nn.ResidualBlock(in_channels=residual_inchannels, out_channels=residual_outchannels)
-        self.upsample = nn.Upsample(scale_factor=2)
 
     def forward(self, input, skip_connection):
         skip_input = self.residual(skip_connection)
