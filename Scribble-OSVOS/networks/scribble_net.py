@@ -26,6 +26,8 @@ class InteractionNetwork(nn.Module):
     def forward(self, image, prev_mask, scribble):
         x = torch.cat((image, prev_mask, scribble), dim=1)
         l1, l2, l3, l4 = self.resnet(x)
+
+        # Decoder
         x = self.decoder1(l4, l3)
         x = self.decoder2(x, l2)
         x = self.decoder3(x, l1)
@@ -38,6 +40,10 @@ class InteractionNetwork(nn.Module):
 class PropogationNetwork(nn.Module):
     def __init__(self):
         super().__init__()
+        self.decoder1 = DecoderBlock(512, 256)
+        self.decoder2 = DecoderBlock(256, 128)
+        self.decoder3 = DecoderBlock(128, 64)
+        self.transConv = nn.ConvTranspose2d(64,1,kernel_size=3)
 
     def forward(self, image, prev_mask, prev_time_mask):
         pass
