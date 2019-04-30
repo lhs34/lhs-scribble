@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from resnet import *
+import sys
+from networks.resnet import *
 
 
 class ScribbleNet(nn.Module):
@@ -149,14 +150,14 @@ class ResidualBlock(nn.Module):
         return out
 
 
-if __name__ == '__main__':
-    batch = 16
-    model = ScribbleNet()
-    model.cuda()
-    output = model(image=torch.randn(batch, 3, 256, 256).cuda(),
-                   prev_mask=torch.randn(batch, 1, 256, 256).cuda(),
-                   prev_time_mask=torch.randn(batch, 1, 256, 256).cuda(),
-                   scribble=torch.randn(batch, 2, 256, 256).cuda(),
-                   prev_agg = torch.randn(batch, 512, 8, 8).cuda())
-    print(output[0].shape)
-    print(output[1].shape)
+# if __name__ == '__main__':
+#     batch = 16
+#     model = ScribbleNet()
+#     model.cuda()
+#     output = model(image=torch.randn(batch, 3, 256, 256).cuda(),
+#                    prev_mask=torch.randn(batch, 1, 256, 256).cuda(),
+#                    prev_time_mask=torch.randn(batch, 1, 256, 256).cuda(),
+#                    scribble=torch.randn(batch, 2, 256, 256).cuda(),
+#                    prev_agg = torch.randn(batch, 512, 8, 8).cuda())
+#     print(output[0].shape)
+#     print(output[1].shape)
