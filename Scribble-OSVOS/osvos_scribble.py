@@ -1,6 +1,6 @@
 import os
-import timeit
 import copy
+import timeit
 
 import torch
 import torch.optim as optim
@@ -31,8 +31,8 @@ class OSVOSScribble(object):
         self.gpu_id = gpu_id
         self.time_budget = time_budget
         self.meanval = (104.00699, 116.66877, 122.67892)
-        self.train_batch = 4
-        self.test_batch = 4
+        self.train_batch = 1
+        self.test_batch = 1
         self.prev_models = {}
         self.parent_model_state = torch.load(os.path.join(Path.models_dir(), self.parent_model),
                                              map_location=lambda storage, loc: storage)
@@ -110,7 +110,7 @@ class OSVOSScribble(object):
 
                 # Compute the fuse loss
                 loss = class_balanced_cross_entropy_loss(outputs[-1], gts, size_average=False, void_pixels=void)
-                running_loss_tr += loss.data[0]
+                running_loss_tr += loss.item()
 
                 # Print stuff
                 if epoch % 10 == 0:

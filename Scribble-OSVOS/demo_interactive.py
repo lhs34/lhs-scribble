@@ -1,6 +1,13 @@
-import torch, cv2
 import os
+import sys
 import timeit
+
+# Handle OpenCV
+ROS_CV = '/opt/ros/kinetic/lib/python2.7/dist-packages'
+if ROS_CV in sys.path: sys.path.remove(ROS_CV)
+
+import cv2
+import torch
 
 from davisinteractive.session import DavisInteractiveSession
 from davisinteractive import utils as interactive_utils
@@ -12,7 +19,7 @@ from mypath import Path
 
 def main():
     # General parameters
-    gpu_id = 1
+    gpu_id = 0
 
     # Configuration used in the challenges
     max_nb_interactions = 8  # Maximum number of interactions

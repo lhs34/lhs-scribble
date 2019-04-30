@@ -1,7 +1,7 @@
 class Path(object):
     @staticmethod
     def db_root_dir():
-        return '/path/to/DAVIS'
+        return '/home/heethesh/Datasets/DAVIS/DAVIS'
 
     @staticmethod
     def save_root_dir():
