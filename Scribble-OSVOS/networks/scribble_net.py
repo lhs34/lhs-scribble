@@ -10,3 +10,4 @@ class ScribbleNet(nn.Module):
 
     def forward(self, x):
         x = resnet18(x)
+        return x
