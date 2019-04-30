@@ -10,8 +10,9 @@ class ScribbleNet(nn.Module):
         self.interaction = InteractionNetwork()
         self.propogation = PropogationNetwork()
 
-    def forward(self, image, prev_mask, prev_time_mask, scribble):
-        mask = self.interaction(image, prev_mask, scribble)
+    def forward(self, image, prev_mask, prev_time_mask, scribble, prev_agg):
+        mask, agg = self.interaction(image, prev_mask, scribble, prev_agg)
+        return mask, agg
         # mask = self.propogation(image, prev_mask, mask)
 
 
@@ -22,7 +23,7 @@ class InteractionNetwork(nn.Module):
         self.resnet = resnet18(pretrained=True, input_layers=6)
 
         # Aggregation block
-        self.feature_aggregation = AggregateBlock()
+        self.feature_aggregation = AggregateBlock(512, 8)
 
         # Decoder
         self.decoder1 = DecoderBlock(512, 256)
@@ -36,7 +37,7 @@ class InteractionNetwork(nn.Module):
         l1, l2, l3, l4 = self.resnet(x)
 
         # Aggregation block
-        agg = self.feature_aggregation(l4, prev_agg, l4.size(1))
+        agg = self.feature_aggregation(prev_agg, l4)
 
         # Decoder
         x = self.decoder1(agg, l3)
@@ -44,7 +45,7 @@ class InteractionNetwork(nn.Module):
         x = self.decoder3(x, l1)
         x = self.trans_conv(x)
         mask = F.upsample(x, scale_factor=4, mode='bilinear')
-        
+
         return mask, agg
 
 
@@ -74,16 +75,16 @@ class PropogationNetwork(nn.Module):
         x = self.decoder3(x, l1)
         x = self.trans_conv(x)
         mask = F.upsample(x, scale_factor=4, mode='bilinear')
-        
+
         return mask, agg
-        
+
 
 class DecoderBlock(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(DecoderBlock).__init__()
-        self.residual_skip = nn.ResidualBlock(in_channels=out_channels, out_channels=in_channels)
+        self.residual_skip = ResidualBlock(in_channels=out_channels, out_channels=in_channels)
         self.upsample = nn.Upsample(scale_factor=2,mode='bilinear')
-        self.residual = nn.ResidualBlock(in_channels=in_channels, out_channels=out_channels)
+        self.residual = ResidualBlock(in_channels=in_channels, out_channels=out_channels)
 
     def forward(self, input, skip_connection):
         skip_input = self.residual(skip_connection)
@@ -91,6 +92,30 @@ class DecoderBlock(nn.Module):
         x = skip_input + x
         x = self.residual(x)
         return x
+
+
+class AggregateBlock(nn.Module):
+    def __init__(self, out_channels, size):
+        super().__init__()
+        self.out_channels = out_channels
+        self.size = size
+        self.gap_prev = nn.AvgPool2d((size, size))
+        self.gap_curr =  nn.AvgPool2d((size ,size))
+        self.downsample = nn.Linear( 2*out_channels, out_channels  )
+        self.upsample = nn.Linear( out_channels, 2*out_channels  )
+
+    def forward(self, prev_map, curr_map):
+        prev_map_ga_pool = self.gap_prev(prev_map).view(-1, self.out_channels )
+        curr_map_ga_pool = self.gap_curr(curr_map).view(-1, self.out_channels )
+        x = torch.cat( (prev_map_ga_pool, curr_map_ga_pool), dim=1)
+        x = self.downsample(x)
+        x = self.upsample(x)
+        x =  x.view(x.shape[0], -1, 2 )
+        x = torch.softmax(x, dim = -1)
+        weighted_prev_map_ga_pool =  torch.mul( prev_map.view(x.shape[0], self.out_channels, -1),   x[:, :, 0].unsqueeze(-1) )
+        weighted_curr_map_ga_pool =  torch.mul( curr_map.view(x.shape[0], self.out_channels, -1),   x[:, :, 1].unsqueeze(-1) )
+        out = weighted_prev_map_ga_pool.view(x.shape[0], self.out_channels, self.size, self.size) + weighted_curr_map_ga_pool.view(x.shape[0], self.out_channels, self.size, self.size)
+        return out
 
 
 class ResidualBlock(nn.Module):
@@ -102,7 +127,7 @@ class ResidualBlock(nn.Module):
         self.conv2 = conv3x3(out_channels, out_channels)
         self.bn2 = nn.BatchNorm2d(out_channels)
         self.downsample = downsample
-        
+
     def forward(self, x):
         residual = x
         out = self.conv1(x)
@@ -124,5 +149,7 @@ if __name__ == '__main__':
     output = model(image=torch.randn(batch, 3, 256, 256).cuda(),
                    prev_mask=torch.randn(batch, 1, 256, 256).cuda(),
                    prev_time_mask=torch.randn(batch, 1, 256, 256).cuda(),
-                   scribble=torch.randn(batch, 2, 256, 256).cuda())
-    print(output.shape)
+                   scribble=torch.randn(batch, 2, 256, 256).cuda(),
+                   prev_agg = torch.randn(batch, 512, 8, 8).cuda())
+    print(output[0].shape)
+    print(output[1].shape)
