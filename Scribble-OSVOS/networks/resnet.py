@@ -199,7 +199,7 @@ class ResNet(nn.Module):
         return l1, l2, l3, l4
 
 
-def resnet18(pretrained=False, input_layers, **kwargs):
+def resnet18(pretrained=False, input_layers=3, **kwargs):
     """Constructs a ResNet-18 model.
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
