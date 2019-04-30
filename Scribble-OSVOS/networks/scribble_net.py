@@ -4,7 +4,6 @@ from resnet import *
 
 
 class ScribbleNet(nn.Module):
-
     def __init__(self):
         super().__init__()
         self.interaction = InteractionNetwork()
@@ -16,7 +15,6 @@ class ScribbleNet(nn.Module):
 
 
 class InteractionNetwork(nn.Module):
-
     def __init__(self):
         super().__init__()
         self.resnet = resnet18(pretrained=True)
@@ -27,12 +25,12 @@ class InteractionNetwork(nn.Module):
 
 
 class PropogationNetwork(nn.Module):
-
     def __init__(self):
         super().__init__()
 
     def forward(self, image, prev_mask, prev_time_mask):
         pass
+
 
 class DecoderBlock(nn.Module):
     def __init__(self, residual_inchannels, residual_outchannels):
