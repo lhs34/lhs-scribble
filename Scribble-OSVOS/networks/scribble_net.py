@@ -26,9 +26,9 @@ class InteractionNetwork(nn.Module):
         self.feature_aggregation = AggregateBlock(512, 8)
 
         # Decoder
-        self.decoder1 = DecoderBlock(512, 256, 9)
-        self.decoder2 = DecoderBlock(256, 128, 13)
-        self.decoder3 = DecoderBlock(128, 64, 17)
+        self.decoder1 = DecoderBlock(512, 256)
+        self.decoder2 = DecoderBlock(256, 128)
+        self.decoder3 = DecoderBlock(128, 64)
         self.trans_conv = nn.ConvTranspose2d(64, 1, kernel_size=3)
 
     def forward(self, image, prev_mask, scribble, prev_agg):
@@ -45,7 +45,7 @@ class InteractionNetwork(nn.Module):
         x = self.decoder2(x, l2)
         x = self.decoder3(x, l1)
         x = self.trans_conv(x)
-        mask = F.upsample(x, scale_factor=4, mode='bilinear')
+        mask = F.interpolate(x, scale_factor=4, mode='bilinear')
 
         return mask, agg
 
@@ -57,9 +57,9 @@ class PropogationNetwork(nn.Module):
         self.resnet = resnet18(pretrained=True, input_layers=5)
 
         # Decoder
-        self.decoder1 = DecoderBlock(512, 256, 9)
-        self.decoder2 = DecoderBlock(256, 128, 15)
-        self.decoder3 = DecoderBlock(128, 64, 21)
+        self.decoder1 = DecoderBlock(512, 256)
+        self.decoder2 = DecoderBlock(256, 128)
+        self.decoder3 = DecoderBlock(128, 64)
         self.trans_conv = nn.ConvTranspose2d(64, 1, kernel_size=3)
 
     def forward(self, image, prev_mask, prev_time_mask, interact_agg):
@@ -75,27 +75,28 @@ class PropogationNetwork(nn.Module):
         x = self.decoder2(x, l2)
         x = self.decoder3(x, l1)
         x = self.trans_conv(x)
-        mask = F.upsample(x, scale_factor=4, mode='bilinear')
+        mask = F.interpolate(x, scale_factor=4, mode='bilinear')
 
         return mask, agg
 
 
 class DecoderBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, trans_conv_size):
+    def __init__(self, in_channels, out_channels):
         super().__init__()
         self.residual_skip = ResidualBlock(out_channels, out_channels)
-        self.upsample = nn.Upsample(scale_factor=2,mode='bilinear')
-        self.conv_trans = nn.ConvTranspose2d(in_channels, out_channels, trans_conv_size)
+        self.conv = nn.Conv2d(in_channels, out_channels,1)
         self.residual = ResidualBlock(out_channels, out_channels)
 
     def forward(self, input, skip_connection):
-        print(skip_connection.shape, input.shape)
         skip_input = self.residual_skip(skip_connection)
-        print(skip_input.shape)
-        x = self.conv_trans(input)
-        print(x.shape)
+
+        x = F.interpolate(input, scale_factor=2,mode='bilinear')
+        x = self.conv(x)
+
         x = skip_input + x
+
         x = self.residual(x)
+
         return x
 
 
