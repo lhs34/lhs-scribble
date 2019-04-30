@@ -13,7 +13,7 @@ from davisinteractive.session import DavisInteractiveSession
 from davisinteractive import utils as interactive_utils
 from davisinteractive.dataset import Davis
 
-from ScribbleNet_main import ScribbleNetMain
+from scribbleNet_main import ScribbleNetMain
 from mypath import Path
 
 
