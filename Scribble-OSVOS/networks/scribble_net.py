@@ -66,7 +66,7 @@ class PropogationNetwork(nn.Module):
         l1, l2, l3, l4 = self.resnet(x)
 
         # Feature fusion
-        agg = l4 + interact_agg
+        agg = torch.cat((l4, interact_agg), dim=1)
 
         # Decoder
         x = self.decoder1(agg, l3)
@@ -75,7 +75,7 @@ class PropogationNetwork(nn.Module):
         x = self.trans_conv(x)
         mask = F.upsample(x, scale_factor=4, mode='bilinear')
         
-        return mask, agg
+        return mask
         
 
 class DecoderBlock(nn.Module):
