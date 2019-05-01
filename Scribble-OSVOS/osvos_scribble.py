@@ -90,6 +90,10 @@ class OSVOSScribble(object):
         loss_tr = []
         aveGrad = 0
 
+        # List of all previous masks and aggregated features
+        prev_masks = []
+        prev_aggs = []
+
         start_time = timeit.default_timer()
         # Main Training and Testing Loop
         epoch = 0
@@ -97,19 +101,21 @@ class OSVOSScribble(object):
             # One training epoch
             running_loss_tr = 0
             for ii, sample_batched in enumerate(trainloader):
+                optimizer.zero_grad()
 
-                inputs, gts, void = sample_batched['image'], sample_batched['scribble_gt'], sample_batched[
-                    'scribble_void_pixels']
+                # Parse from dataset loader
+                inputs = sample_batched['images'].cuda()
+                gts = sample_batched['scribble_gt'].cuda()
+                scribbles = sample_batched['scribble_raw'].cuda()
+                scribbles_idx = sample_batched['scribble_idx'].cuda()
 
                 # Forward-Backward of the mini-batch
-                inputs, gts, void = Variable(inputs), Variable(gts), Variable(void)
-                if self.gpu_id >= 0:
-                    inputs, gts, void = inputs.cuda(), gts.cuda(), void.cuda()
-
-                outputs = self.net.forward(inputs)
+                # prev_masks = torch.tensor(prev_masks).unsqueeze(0)
+                # prev_aggs = torch.tensor(prev_aggs).unsqueeze(0)
+                masks, agg = self.net.forward(inputs, scribbles, scribble_idx, prev_masks, prev_agg)
 
                 # Compute the fuse loss
-                loss = class_balanced_cross_entropy_loss(outputs[-1], gts, size_average=False, void_pixels=void)
+                loss = class_balanced_cross_entropy_loss(masks, gts, scribble_idx)
                 running_loss_tr += loss.item()
 
                 # Print stuff
@@ -119,19 +125,14 @@ class OSVOSScribble(object):
 
                     print('[Epoch: %d, numImages: %5d]' % (epoch + 1, ii + 1))
                     print('Loss: %f' % running_loss_tr)
-                    # writer.add_scalar('data/total_loss_epoch', running_loss_tr, epoch)
 
                 # Backward the averaged gradient
-                loss /= nAveGrad
                 loss.backward()
-                aveGrad += 1
+                optimizer.step()
 
-                # Update the weights once in nAveGrad forward passes
-                if aveGrad % nAveGrad == 0:
-                    # writer.add_scalar('data/total_loss_iter', loss.data[0], ii + num_img_tr * epoch)
-                    optimizer.step()
-                    optimizer.zero_grad()
-                    aveGrad = 0
+                # Update the current round data
+                prev_masks.append(masks.detach())
+                prev_aggs.append(agg.detach())
 
             epoch += train_batch
             stop_time = timeit.default_timer()
