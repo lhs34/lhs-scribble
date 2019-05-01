@@ -86,6 +86,27 @@ class Resize(object):
 
         return sample
 
+class CenterCrop(object):
+    """Randomly resize the image and the ground truth to specified scales.
+    Args:
+        scales (list): the list of scales
+    """
+    def __init__(self, size):
+        self.size = size
+
+    def __call__(self, sample):
+
+        for elem in sample.keys():
+            if 'meta' in elem:
+                continue
+            tmp = sample[elem]
+            if(len(tmp.shape) == 3):
+                tmp = tmp[ int(tmp.shape[0]/2 - self.size[0]/2) : int(tmp.shape[0]/2 + self.size[0]/2), int(tmp.shape[1]/2 - self.size[1]/2) : int(tmp.shape[1]/2 + self.size[1]/2),:]
+            else:
+                tmp = tmp[ int(tmp.shape[0]/2 - self.size[0]/2) : int(tmp.shape[0]/2 + self.size[0]/2), int(tmp.shape[1]/2 - self.size[1]/2) : int(tmp.shape[1]/2 + self.size[1]/2)]
+            sample[elem] = tmp
+
+        return sample
 
 class RandomHorizontalFlip(object):
     """Horizontally flip the given image and ground truth randomly with a probability of 0.5."""
@@ -203,6 +224,7 @@ class CustomScribbleInteractive(object):
 
         sample['scribble_gt'] = scr_gt
         sample['scribble_void_pixels'] = scr_nocare
+        sample['scribble_orig'] = mask
 
         return sample
 

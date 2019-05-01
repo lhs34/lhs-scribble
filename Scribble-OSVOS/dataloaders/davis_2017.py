@@ -219,7 +219,7 @@ class DAVIS2017(Dataset):
             sample['meta'] = {'seq_name': seq_name,
                               'frame_id': frame_id,
                               'obj_id': obj_id,
-                              'im_size': (img.shape[0], img.shape[1])}
+                              'im_size': (480, 832)}
 
         if self.transform is not None:
             sample = self.transform(sample)
