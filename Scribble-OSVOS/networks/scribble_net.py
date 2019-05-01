@@ -11,17 +11,19 @@ class ScribbleNet(nn.Module):
         self.interaction = InteractionNetwork()
         self.propogation = PropogationNetwork()
 
-    def forward(self, image, prev_mask, prev_time_mask, scribble, prev_agg):
-        mask, agg = self.interaction(image, prev_mask, scribble, prev_agg)
-        return mask, agg
-        # mask = self.propogation(image, prev_mask, mask)
-
+    def forward(self, interact, image, prev_mask, prev_time_mask, scribble, prev_agg):
+        if interact:
+            mask, agg = self.interaction(image, prev_mask, scribble, prev_agg)
+            return mask, agg
+        else:
+            mask = self.propogation(image, prev_mask, mask)
+            return mask
 
 class InteractionNetwork(nn.Module):
     def __init__(self):
         super().__init__()
         # Encoder
-        self.resnet = resnet18(pretrained=True, input_layers=6)
+        self.resnet = resnet18(pretrained=True, input_layers=5)
 
         # Aggregation block
         self.feature_aggregation = AggregateBlock(512, 8)
