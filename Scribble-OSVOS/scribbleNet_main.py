@@ -60,7 +60,7 @@ class ScribbleNetMain(object):
         #           .format(obj_id, n_interaction-1, scribble_iter))
         #     self.net.load_state_dict(self.prev_models[obj_id])
 
-        lr = 1e-8
+        lr = 1e-5
         wd = 0.0002
         # optimizer = optim.SGD([
         #     {'params': [pr[1] for pr in self.net.stages.named_parameters() if 'weight' in pr[0]], 'weight_decay': wd},
@@ -73,7 +73,7 @@ class ScribbleNetMain(object):
         #     {'params': self.net.fuse.bias, 'lr': 2 * lr / 100},
         # ], lr=lr, momentum=0.9)
 
-        optimizer = optim.SGD(filter(lambda p: p.requires_grad, self.net.parameters()), lr=lr, momentum=0.9, weight_decay=wd)
+        optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.net.parameters()), lr=lr, momentum=0.9)
 
         prev_mask_path = os.path.join(self.save_res_dir, 'interaction-{}'.format(n_interaction-1),
                                       'scribble-{}'.format(scribble_iter))

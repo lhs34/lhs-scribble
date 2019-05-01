@@ -51,11 +51,17 @@ def main():
                                  report_save_dir=report_save_dir,
                                  max_nb_interactions=max_nb_interactions,
                                  max_time=max_time) as sess:
+        scribbles_list = []
         while sess.next():
             t_total = timeit.default_timer()
 
             # Get the current iteration scribbles
             sequence, scribbles, first_scribble = sess.get_scribbles()
+
+            print('sequence: ', sequence)
+            scribbles_list.append(scribbles)
+            print('scriibble len: ', len(scribbles_list))
+            
             if first_scribble:
                 n_interaction = 1
                 n_objects = Davis.dataset[sequence]['num_objects']
