@@ -25,7 +25,7 @@ class ScribbleNetMain(object):
         self.save_model_dir = save_model_dir
         self.parent_model = parent_model
         self.save_res_dir = save_result_dir
-        self.net = vo.ScribbleNet(pretrained=0)
+        self.net = ScribbleNet()
         if gpu_id >= 0:
             torch.cuda.set_device(device=gpu_id)
             self.net.cuda()
