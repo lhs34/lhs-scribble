@@ -11,9 +11,26 @@ class ScribbleNet(nn.Module):
         self.interaction = InteractionNetwork()
         self.propogation = PropogationNetwork()
 
-    def forward(self, image, prev_mask, scribble, prev_agg):
-        mask, agg = self.interaction(image, prev_mask, scribble, prev_agg)
+    def forward(self, inputs, scribbles, scribble_idx, prev_masks, prev_agg):
+        mask_scribble_idx, agg = self.interaction(inputs[scribble_idx], prev_masks[scribble_idx], scribbles[-1], prev_agg)
+        video_len = inputs.shape[0]
+        masks = []
+
+        # Propogate forwards in video sequence
+        prev_time_mask = mask_scribble_idx
+        masks.append(prev_time_mask)
+        for i in range(scribble_idx, video_len):
+            prev_time_mask = self.propogation(inputs[scribble_idx], prev_masks[scribble_idx], prev_time_mask, prev_agg)
+            masks.append(prev_time_mask)
         
+        # Go backwards in video sequence
+        prev_time_mask = mask_scribble_idx
+        for i in range(scribble_idx-1, -1, -1):
+            prev_time_mask = self.propogation(inputs[scribble_idx], prev_masks[scribble_idx], prev_time_mask, prev_agg)
+            masks = [prev_time_mask] + masks
+        
+        masks = torch.stack(masks)
+        return masks, agg
 
 
 class InteractionNetwork(nn.Module):
@@ -23,7 +40,7 @@ class InteractionNetwork(nn.Module):
         self.resnet = resnet18(pretrained=True, input_layers=6)
 
         # Aggregation block
-        self.feature_aggregation = AggregateBlock(512, (15,26) )
+        self.feature_aggregation = AggregateBlock(512, (15,26))
 
         # Decoder
         self.decoder1 = DecoderBlock(512, 256)
@@ -58,7 +75,7 @@ class PropogationNetwork(nn.Module):
         self.decoder1 = DecoderBlock(512, 256)
         self.decoder2 = DecoderBlock(256, 128)
         self.decoder3 = DecoderBlock(128, 64)
-        self.trans_conv = nn.ConvTranspose2d(64, 1, kernel_size=3)
+        self.trans_conv = nn.ConvTranspose2d(64, 1, kernel_size=1)
 
     def forward(self, image, prev_mask, prev_time_mask, interact_agg):
         # Encoder
