@@ -203,6 +203,7 @@ class CustomScribbleInteractive(object):
 
         sample['scribble_gt'] = scr_gt
         sample['scribble_void_pixels'] = scr_nocare
+        sample['scribble_orig'] = mask
 
         return sample
 

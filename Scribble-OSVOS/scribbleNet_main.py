@@ -73,7 +73,7 @@ class ScribbleNetMain(object):
         #     {'params': self.net.fuse.bias, 'lr': 2 * lr / 100},
         # ], lr=lr, momentum=0.9)
 
-        optimizer.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=lr, momentum=0.9, weight_decay=wd)
+        optimizer = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=lr, momentum=0.9, weight_decay=wd)
 
 
         prev_mask_path = os.path.join(self.save_res_dir, 'interaction-{}'.format(n_interaction-1),
@@ -105,7 +105,7 @@ class ScribbleNetMain(object):
             running_loss_tr = 0
             for ii, sample_batched in enumerate(trainloader):
 
-                inputs, gts, void = sample_batched['image'], sample_batched['scribble_gt'], sample_batched[
+                inputs, scribble, gts, void = sample_batched['image'], sample_batched['scribble_orig'], sample_batched['scribble_gt'], sample_batched[
                     'scribble_void_pixels']
 
                 # Forward-Backward of the mini-batch
@@ -113,7 +113,7 @@ class ScribbleNetMain(object):
                 if self.gpu_id >= 0:
                     inputs, gts, void = inputs.cuda(), gts.cuda(), void.cuda()
 
-                masks, agg = self.net.forward(inputs, masks, prev_time_mask, scribble, agg)
+                outputs, agg = self.net.forward(inputs, masks, prev_time_mask, scribble, agg)
 
                 # Compute the fuse loss
                 loss = class_balanced_cross_entropy_loss(outputs[-1], gts, size_average=False, void_pixels=void)
