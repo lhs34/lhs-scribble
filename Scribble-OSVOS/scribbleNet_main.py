@@ -93,63 +93,50 @@ class ScribbleNetMain(object):
         loss_tr = []
         aveGrad = 0
 
+        # List of all previous masks and aggregated features
+        prev_masks = []
+        prev_aggs = []
+
         start_time = timeit.default_timer()
         # Main Training and Testing Loop
-
-        agg = torch.zeros((1,512,15,26)).float().cuda()
-
-        mask = torch.zeros((1,1,480,832)).float().cuda()
-
         epoch = 0
         while 1:
             # One training epoch
             running_loss_tr = 0
             for ii, sample_batched in enumerate(trainloader):
-                print('iteration: ', ii)
+                optimizer.zero_grad()
 
-                inputs, scribble, gts, void = sample_batched['image'], sample_batched['scribble_orig'], sample_batched['scribble_gt'], sample_batched[
-                    'scribble_void_pixels']
+                # Parse from dataset loader
+                inputs = sample_batched['images'].cuda()
+                gts = sample_batched['scribble_gt'].cuda()
+                scribbles = sample_batched['scribble_raw'].cuda()
+                scribbles_idx = sample_batched['scribble_idx'].cuda()
 
                 # Forward-Backward of the mini-batch
-                inputs, gts, void, scribble = Variable(inputs), Variable(gts), Variable(void), Variable(scribble)
-                if self.gpu_id >= 0:
-                    inputs, gts, void, scribble = inputs.cuda(), gts.cuda(), void.cuda(), scribble.cuda().float()
-
-                mask, agg = self.net.forward(True, inputs, mask, scribble, agg)
-                # print('mask shape: ', mask.shape)
-                # print('inputs shape: ', inputs.shape)
-                # print('gts shape: ', gts.shape)
-                # print('void shape: ', void.shape)
-                # print('scribble shape: ', scribble.shape)
-                # print('agg shape: ', agg.shape)
+                # prev_masks = torch.tensor(prev_masks).unsqueeze(0)
+                # prev_aggs = torch.tensor(prev_aggs).unsqueeze(0)
+                masks, agg = self.net.forward(inputs, scribbles, scribble_idx, prev_masks, prev_agg)
 
                 # Compute the fuse loss
-                loss = class_balanced_cross_entropy_loss(mask, gts, size_average=False, void_pixels=void)
+                loss = class_balanced_cross_entropy_loss(masks, gts, scribble_idx)
                 running_loss_tr += loss.item()
 
                 # Print stuff
-                if epoch % 1 == 0:
+                if epoch % 10 == 0:
                     running_loss_tr /= num_img_tr
                     loss_tr.append(running_loss_tr)
 
                     print('[Epoch: %d, numImages: %5d]' % (epoch + 1, ii + 1))
                     print('Loss: %f' % running_loss_tr)
-                    # writer.add_scalar('data/total_loss_epoch', running_loss_tr, epoch)
 
                 # Backward the averaged gradient
-                loss /= nAveGrad
                 loss.backward()
-                aveGrad += 1
+                optimizer.step()
 
-                # Update the weights once in nAveGrad forward passes
-                if aveGrad % nAveGrad == 0:
-                    # writer.add_scalar('data/total_loss_iter', loss.data[0], ii + num_img_tr * epoch)
-                    optimizer.step()
-                    optimizer.zero_grad()
-                    aveGrad = 0
+                # Update the current round data
+                prev_masks.append(masks.detach())
+                prev_aggs.append(agg.detach())
 
-                # Need to detach mask for reusing the next iteration.
-                mask = mask.detach()
             epoch += train_batch
             stop_time = timeit.default_timer()
             if stop_time - start_time > self.time_budget:
