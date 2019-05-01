@@ -35,8 +35,8 @@ class ScribbleNetMain(object):
         self.train_batch = 1
         self.test_batch = 1
         self.prev_models = {}
-        self.parent_model_state = torch.load(os.path.join(Path.models_dir(), self.parent_model),
-                                             map_location=lambda storage, loc: storage)
+        # self.parent_model_state = torch.load(os.path.join(Path.models_dir(), self.parent_model),
+        #                                      map_location=lambda storage, loc: storage)
 
     def train(self, first_frame, n_interaction, obj_id, scribbles_data, scribble_iter, subset, use_previous_mask=False):
         nAveGrad = 1
@@ -50,15 +50,15 @@ class ScribbleNetMain(object):
         if obj_id == 1 and n_interaction == 1:
             self.prev_models = {}
 
-        # Network definition
-        if n_interaction == 1:
-            print('Loading weights from: {}'.format(self.parent_model))
-            self.net.load_state_dict(self.parent_model_state)
-            self.prev_models[obj_id] = None
-        else:
-            print('Loading weights from previous network: objId-{}_interaction-{}_scribble-{}.pth'
-                  .format(obj_id, n_interaction-1, scribble_iter))
-            self.net.load_state_dict(self.prev_models[obj_id])
+        # # Network definition
+        # if n_interaction == 1:
+        #     print('Loading weights from: {}'.format(self.parent_model))
+        #     self.net.load_state_dict(self.parent_model_state)
+        #     self.prev_models[obj_id] = None
+        # else:
+        #     print('Loading weights from previous network: objId-{}_interaction-{}_scribble-{}.pth'
+        #           .format(obj_id, n_interaction-1, scribble_iter))
+        #     self.net.load_state_dict(self.prev_models[obj_id])
 
         lr = 1e-8
         wd = 0.0002
@@ -73,12 +73,11 @@ class ScribbleNetMain(object):
         #     {'params': self.net.fuse.bias, 'lr': 2 * lr / 100},
         # ], lr=lr, momentum=0.9)
 
-        optimizer = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=lr, momentum=0.9, weight_decay=wd)
-
+        optimizer = optim.SGD(filter(lambda p: p.requires_grad, self.net.parameters()), lr=lr, momentum=0.9, weight_decay=wd)
 
         prev_mask_path = os.path.join(self.save_res_dir, 'interaction-{}'.format(n_interaction-1),
                                       'scribble-{}'.format(scribble_iter))
-        composed_transforms_tr = transforms.Compose([tr.SubtractMeanImage(self.meanval),
+        composed_transforms_tr = transforms.Compose([tr.CenterCrop((480,832)),tr.SubtractMeanImage(self.meanval),
                                                      tr.CustomScribbleInteractive(scribbles_list, first_frame,
                                                                                   use_previous_mask=use_previous_mask,
                                                                                   previous_mask_path=prev_mask_path),
@@ -97,30 +96,39 @@ class ScribbleNetMain(object):
         start_time = timeit.default_timer()
         # Main Training and Testing Loop
 
-        agg = torch.zeros((1,512,8,8)).float().cuda()
+        agg = torch.zeros((1,512,15,26)).float().cuda()
+
+        mask = torch.zeros((1,1,480,832)).float().cuda()
 
         epoch = 0
         while 1:
             # One training epoch
             running_loss_tr = 0
             for ii, sample_batched in enumerate(trainloader):
+                print('iteration: ', ii)
 
                 inputs, scribble, gts, void = sample_batched['image'], sample_batched['scribble_orig'], sample_batched['scribble_gt'], sample_batched[
                     'scribble_void_pixels']
 
                 # Forward-Backward of the mini-batch
-                inputs, gts, void = Variable(inputs), Variable(gts), Variable(void)
+                inputs, gts, void, scribble = Variable(inputs), Variable(gts), Variable(void), Variable(scribble)
                 if self.gpu_id >= 0:
-                    inputs, gts, void = inputs.cuda(), gts.cuda(), void.cuda()
+                    inputs, gts, void, scribble = inputs.cuda(), gts.cuda(), void.cuda(), scribble.cuda().float()
 
-                outputs, agg = self.net.forward(inputs, masks, prev_time_mask, scribble, agg)
+                mask, agg = self.net.forward(True, inputs, mask, scribble, agg)
+                # print('mask shape: ', mask.shape)
+                # print('inputs shape: ', inputs.shape)
+                # print('gts shape: ', gts.shape)
+                # print('void shape: ', void.shape)
+                # print('scribble shape: ', scribble.shape)
+                # print('agg shape: ', agg.shape)
 
                 # Compute the fuse loss
-                loss = class_balanced_cross_entropy_loss(outputs[-1], gts, size_average=False, void_pixels=void)
+                loss = class_balanced_cross_entropy_loss(mask, gts, size_average=False, void_pixels=void)
                 running_loss_tr += loss.item()
 
                 # Print stuff
-                if epoch % 10 == 0:
+                if epoch % 1 == 0:
                     running_loss_tr /= num_img_tr
                     loss_tr.append(running_loss_tr)
 
@@ -140,6 +148,8 @@ class ScribbleNetMain(object):
                     optimizer.zero_grad()
                     aveGrad = 0
 
+                # Need to detach mask for reusing the next iteration.
+                mask = mask.detach()
             epoch += train_batch
             stop_time = timeit.default_timer()
             if stop_time - start_time > self.time_budget:
@@ -156,7 +166,8 @@ class ScribbleNetMain(object):
             if not os.path.exists(save_dir_res):
                 os.makedirs(save_dir_res)
 
-        composed_transforms_ts = transforms.Compose([tr.SubtractMeanImage(self.meanval),
+        composed_transforms_ts = transforms.Compose([tr.CenterCrop((480,832)),
+                                                     tr.SubtractMeanImage(self.meanval),
                                                      tr.ToTensor()])
 
         # Testing dataset and its iterator

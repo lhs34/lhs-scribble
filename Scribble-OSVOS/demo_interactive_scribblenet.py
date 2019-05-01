@@ -32,7 +32,7 @@ def main():
     subset = 'val'
     host = 'localhost'  # 'localhost' for subsets train and val.
 
-    # OSVOS parameters
+    # ScribbleNet parameters
     time_budget_per_object = 20
     parent_model = 'scribblenet_parent.pth'
     prev_mask = True  # Use previous mask as no-care area when fine-tuning

@@ -11,7 +11,7 @@ class ScribbleNet(nn.Module):
         self.interaction = InteractionNetwork()
         self.propogation = PropogationNetwork()
 
-    def forward(self, interact, image, prev_mask, prev_time_mask, scribble, prev_agg):
+    def forward(self, interact, image, prev_mask, scribble, prev_agg):
         if interact:
             mask, agg = self.interaction(image, prev_mask, scribble, prev_agg)
             return mask, agg
@@ -26,30 +26,33 @@ class InteractionNetwork(nn.Module):
         self.resnet = resnet18(pretrained=True, input_layers=5)
 
         # Aggregation block
-        self.feature_aggregation = AggregateBlock(512, 8)
+        self.feature_aggregation = AggregateBlock(512, (15,26) )
 
         # Decoder
         self.decoder1 = DecoderBlock(512, 256)
         self.decoder2 = DecoderBlock(256, 128)
         self.decoder3 = DecoderBlock(128, 64)
-        self.trans_conv = nn.ConvTranspose2d(64, 1, kernel_size=3)
+        self.trans_conv = nn.ConvTranspose2d(64, 1, kernel_size=1)
 
     def forward(self, image, prev_mask, scribble, prev_agg):
         # Encoder
         x = torch.cat((image, prev_mask, scribble), dim=1)
         l1, l2, l3, l4 = self.resnet(x)
 
+
         # Aggregation block
         agg = self.feature_aggregation(prev_agg, l4)
-        print('l3 shape: ', l3.shape)
+        # print('l1 shape: ', l1.shape)
+        # print('l2 shape: ', l2.shape)
+        # print('l3 shape: ', l3.shape)
+        # print('l4 shape: ', l4.shape)
 
         # Decoder
-        x = self.decoder1(agg, l3)
+        x = self.decoder1(l4, l3)
         x = self.decoder2(x, l2)
         x = self.decoder3(x, l1)
         x = self.trans_conv(x)
         mask = F.interpolate(x, scale_factor=4, mode='bilinear')
-
         return mask, agg
 
 
@@ -108,8 +111,8 @@ class AggregateBlock(nn.Module):
         super().__init__()
         self.out_channels = out_channels
         self.size = size
-        self.gap_prev = nn.AvgPool2d((size, size))
-        self.gap_curr =  nn.AvgPool2d((size ,size))
+        self.gap_prev = nn.AvgPool2d(size)
+        self.gap_curr =  nn.AvgPool2d(size)
         self.downsample = nn.Linear( 2*out_channels, out_channels  )
         self.upsample = nn.Linear( out_channels, 2*out_channels  )
 
@@ -123,7 +126,7 @@ class AggregateBlock(nn.Module):
         x = torch.softmax(x, dim = -1)
         weighted_prev_map_ga_pool =  torch.mul( prev_map.view(x.shape[0], self.out_channels, -1),   x[:, :, 0].unsqueeze(-1) )
         weighted_curr_map_ga_pool =  torch.mul( curr_map.view(x.shape[0], self.out_channels, -1),   x[:, :, 1].unsqueeze(-1) )
-        out = weighted_prev_map_ga_pool.view(x.shape[0], self.out_channels, self.size, self.size) + weighted_curr_map_ga_pool.view(x.shape[0], self.out_channels, self.size, self.size)
+        out = weighted_prev_map_ga_pool.view(x.shape[0], self.out_channels, self.size[0], self.size[1]) + weighted_curr_map_ga_pool.view(x.shape[0], self.out_channels, self.size[0], self.size[1])
         return out
 
 
@@ -146,7 +149,6 @@ class ResidualBlock(nn.Module):
         out = self.bn2(out)
         if self.downsample:
             residual = self.downsample(x)
-        print(out.shape)
         out += residual
         out = self.relu(out)
         return out
