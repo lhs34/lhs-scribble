@@ -13,6 +13,8 @@ import numpy as np
 from davisinteractive import utils as interactive_utils
 
 from dataloaders import davis_2017 as db
+from dataloaders import davis_custom as db_scribblenet
+
 from mypath import Path
 from dataloaders import custom_transforms as tr
 from layers.osvos_layers import class_balanced_cross_entropy_loss
@@ -85,9 +87,12 @@ class ScribbleNetMain(object):
                                                      tr.ScaleNRotate(rots=(-30, 30), scales=(.75, 1.25)),
                                                      tr.ToTensor()])
         # Training dataset and its iterator
-        db_train = db.DAVIS2017(split=subset, transform=composed_transforms_tr,
+        # db_train = db.DAVIS2017(split=subset, transform=composed_transforms_tr,
+        #                         custom_frames=frames_list, seq_name=seq_name,
+        #                         obj_id=obj_id, no_gt=True, retname=True)
+        db_train = db_scribblenet.DAVIS2017(split=subset, transform=composed_transforms_tr,
                                 custom_frames=frames_list, seq_name=seq_name,
-                                obj_id=obj_id, no_gt=True, retname=True)
+                                obj_id=obj_id, no_gt=True, retname=True)       
         trainloader = DataLoader(db_train, batch_size=train_batch, shuffle=True, num_workers=num_workers)
         num_img_tr = len(trainloader)
         loss_tr = []
@@ -158,7 +163,8 @@ class ScribbleNetMain(object):
                                                      tr.ToTensor()])
 
         # Testing dataset and its iterator
-        db_test = db.DAVIS2017(split=subset, transform=composed_transforms_ts, seq_name=sequence, no_gt=True, retname=True)
+        # db_test = db.DAVIS2017(split=subset, transform=composed_transforms_ts, seq_name=sequence, no_gt=True, retname=True)
+        db_test = db_scribblenet.DAVIS2017(split=subset, transform=composed_transforms_ts, seq_name=sequence, no_gt=True, retname=True)
         testloader = DataLoader(db_test, batch_size=self.test_batch, shuffle=False, num_workers=2)
 
         print('Testing Network for obj_id={}'.format(obj_id))
